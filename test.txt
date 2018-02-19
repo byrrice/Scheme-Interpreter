@@ -11,3 +11,5 @@ else if (x * (x + x) > y)
   return x * (x + x);
 else
   return y - 1;
+
+no u.
