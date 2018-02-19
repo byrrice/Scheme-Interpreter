@@ -28,12 +28,15 @@
 (define evaluateWhile
   (lambda (stmt state return)
     (if (evaluateBool (ifCond stmt))
-        (evaluateWhile stmt (evluateStatements (ifTrue stmt) state return) return)))) 
+        (evaluateWhile stmt (evluateStatements (ifTrue stmt) state return) return))))
+
+(define evaluateDeclare
+  (lambda (stmt state return)
+    (cons (variableName stmt) (variableList state)
  
 
 ; evaluateBool
 ; evaluateValue
-; evaluateWhile
 ; evaluateAssign
 ; evaluateDeclare
 
@@ -52,3 +55,7 @@
 (define ifFalse cadddr)
 
 (define returnValue cadr)
+
+(define variableName cadr)
+
+(define variableList car)
