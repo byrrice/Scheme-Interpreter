@@ -5,7 +5,7 @@
 
 (define evaluateDoc
   (lambda
-      (evaluateStatements (parse "test.txt") (list '() '()) (lambda (v) v))
+      (evaluateStatements (parse "test.txt") (list '() '()) (lambda (v) v))))
 
 (define evaluateStatements
   (lambda (stmts state return)
@@ -13,10 +13,10 @@
       ((null? stmts) state)
       ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatements (car stmts) state return) return))
       ((eq? 'if (car stmts)) (evaluateIf stmts state return))
-      ((eq? 'while (car stmts)) (evaluateIf stmts state return))
+      ((eq? 'while (car stmts)) (evaluateWhile stmts state return))
       ((eq? 'return (car stmts)) (return (evaluateExpression (returnValue stmts) state)))
-      ((eq? '= (car stmts)) (evaluateIf stmts state return))
-      ((eq? 'var (car stmts)) (evaluateIf stmts state return))
+      ((eq? '= (car stmts)) (evaluateAssign stmts state return))
+      ((eq? 'var (car stmts)) (evaluateDeclare stmts state return))
       (else (evaluateExpression lis state)))))
 
 (define evaluateIf
@@ -24,13 +24,18 @@
     (if (evaluateBool (ifCond stmt))
         (evaluateStatements (ifTrue stmt) state return)
         (evaluateStatements (ifFalse stmt) state return))))
-    
+
+(define evaluateWhile
+  (lambda (stmt state return)
+    (if (evaluateBool (ifCond stmt))
+        (evaluateWhile stmt (evluateStatements (ifTrue stmt) state return) return)))) 
+ 
 
 ; evaluateBool
 ; evaluateValue
 ; evaluateWhile
 ; evaluateAssign
-; 
+; evaluateDeclare
 
 ; Fix later
 
