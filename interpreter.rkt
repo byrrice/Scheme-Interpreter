@@ -6,9 +6,10 @@
 ; Function to start interpreting
 (define evaluateDoc
   (lambda (fileName)
-      (evaluateStatements (parser fileName) (list '() '()) (lambda (v) v))))
+      (evaluateStatements (parser fileName) initState (lambda (v) v))))
 
 ; Main functiion, evaluates list of statements fed into it
+; Mstate
 (define evaluateStatements
   (lambda (stmts state return)
     (cond
@@ -84,6 +85,7 @@
 
 ; Function to determine whether the expression will return a boolean or a number, and returns the literal values, as well as variable values.
 ; Lots of checks to filter which expression should go to which function
+; Mvalue
 (define evaluateExpression
   (lambda (expr state)
     (cond
@@ -109,6 +111,7 @@
       (else (error 'NotExpression "Cannot evaluate the expression")))))
 
 ; Function to return true or false given an expression
+; Mvalue
 (define evaluateBool
   (lambda (expr state)
     (convertBoolToWord
@@ -140,6 +143,7 @@
       (else word))))
 
 ; Function to return the exact value of a function given an expression, returning a numeral value
+; Mvalue
 (define evaluateValue
   (lambda (expr state)
     (cond
@@ -153,6 +157,9 @@
       (else (error 'badop "Undefined operator")))))
 
 ; Abstraction below
+
+; Defines the initial state
+(define initState (list '() '()))
 
 ; if the first item in a list is a variable name
 (define variable car)
