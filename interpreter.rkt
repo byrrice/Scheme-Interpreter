@@ -6,26 +6,37 @@
 ; Function to start interpreting
 (define evaluateDoc
   (lambda (fileName)
-      (evaluateStatements (parser fileName) initState (lambda (v) v))))
+    (call/cc
+     (lambda (return)
+      (evaluateStatements (parser fileName) initState return)))))
 
 ; Main functiion, evaluates list of statements fed into it
-; Mstate
+
+;Multiple statements
 (define evaluateStatements
   (lambda (stmts state return)
     (cond
       ((null? stmts) state)
-      ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatements (car stmts) state return) return))
-      ((eq? 'if (car stmts)) (evaluateIf stmts state return))
-      ((eq? 'while (car stmts)) (evaluateWhile stmts state return))
-      ((eq? 'return (car stmts)) (return (evaluateExpression (returnValue stmts) state)))
-      ((eq? '= (car stmts)) (evaluateAssign stmts state))
-      ((eq? 'var (car stmts)) (evaluateDeclare stmts state))
-      (else (evaluateExpression stmts state)))))
+      ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatement (car stmts) state return) return))
+      (else (evaluateStatement stmts state return)))))
+      
+
+; Single statement
+(define evaluateStatement
+  (lambda (stmt state return)
+    (cond
+      ((null? stmt) state)
+      ((eq? 'if (car stmt)) (evaluateIf stmt state return))
+      ((eq? 'while (car stmt)) (evaluateWhile stmt state return))
+      ((eq? 'return (car stmt)) (return (evaluateExpression (returnValue stmt) state)))
+      ((eq? '= (car stmt)) (evaluateAssign stmt state))
+      ((eq? 'var (car stmt)) (evaluateDeclare stmt state))
+      (else (evaluateExpression stmt state)))))
 
 ; Function for evaluating if statements
 (define evaluateIf
   (lambda (stmt state return)
-    (if (eq? 'true (evaluateBool (ifCond stmt) state))
+    (if (eq? 'true (evaluateExpression (ifCond stmt) state))
         (evaluateStatements (ifTrue stmt) state return)
         (if (not (null? (falseCheck stmt)))
             (evaluateStatements (ifFalse stmt) state return)
