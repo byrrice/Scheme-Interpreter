@@ -1,4 +1,4 @@
-; Interpreter part 1
+ ;0 Interpreter part 1
 ; Isaac Ng ikn3, Rahul Pokharna rkp43, Sibi Sengottuvel sxs1552
 
 (load "simpleParser.scm")
@@ -8,13 +8,13 @@
   (lambda (fileName)
     (call/cc
      (lambda (return)
-      (evaluateStatements (parser fileName) initState return)))))
+      (evaluateStatements (parser fileName) initState return initBreak)))))
 
 ; Main functiion, evaluates list of statements fed into it
 
 ;Multiple statements
 (define evaluateStatements
-  (lambda (stmts state return)
+  (lambda (stmts state return break)
     (cond
       ((null? stmts) state)
       ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatement (car stmts) state return) return))
@@ -23,15 +23,28 @@
 
 ; Single statement
 (define evaluateStatement
-  (lambda (stmt state return)
+  (lambda (stmt state return break)
     (cond
       ((null? stmt) state)
+      ; ((eq? 'try (operator expr)) (call/cc (lambda (break) (evaluateTryCatch expr state return break))))
+      ((eq? 'begin (operator expr))  (removeStateLayer (call/cc (lambda (break) (evaluateStatements (blockList expr) (addStateLayer state) return break)))))
+      ((eq? 'break) (break state))
       ((eq? 'if (car stmt)) (evaluateIf stmt state return))
       ((eq? 'while (car stmt)) (evaluateWhile stmt state return))
       ((eq? 'return (car stmt)) (return (evaluateExpression (returnValue stmt) state)))
       ((eq? '= (car stmt)) (evaluateAssign stmt state))
       ((eq? 'var (car stmt)) (evaluateDeclare stmt state))
       (else (evaluateExpression stmt state)))))
+
+; add a layer to the state
+(define addStateLayer
+  (lambda (state)
+    (cons (list '() '()) state)))
+
+; remove a layer from the state
+(define removeStateLayer
+  (lambda (state)
+    (cdr state)))
 
 ; Function for evaluating if statements
 (define evaluateIf
@@ -67,20 +80,27 @@
 (define isInState
   (lambda (name state)
     (cond
+      ((null? state) #f)
       ((null? (variableList state)) #f)
+      ((list? (caar state)) (or (isInState name (car state)) (isInState name (cdr state)))) ; if the state still has layers, go into the layers
       ((eq? name (car (variableList state))) #t)
       (else (isInState name (list (cdr (variableList state)) (cdr (valueList state))))))))
 
 ; Puts values into a state, removing any instance of the variable from the list first
 (define putInState
   (lambda (name val state)
-    (list (cons name (variableList (removeFromState name state))) (cons val (valueList (removeFromState name state))))))
+    (cond
+      ((isInState name state) (begin (set-box! (getBoxFromState (name state)) val)) state)
+      (else (cons (list (cons name (variableList (topLayer state))) (cons (box val) (valueList (topLayer state)))) (cdr state))))))
+
 
 ; Removes all instances of a variable from the state
 (define removeFromState
   (lambda (name state)
     (cond
+      ((null? state) state)
       ((null? (variableList state)) state)
+      ((list? (caar state)) ( (isInState name (car state)) (isInState name (cdr state)))) ; if the state still has layers, go into the layers
       ((eq? name (car (variableList state))) (list (cdr (variableList state)) (cdr (valueList state))))
       (else (list (cons (car (variableList state)) (variableList (removeFromState name (list (cdr (variableList state)) (cdr (valueList state))))))
                   (cons (car (valueList state)) (valueList (removeFromState name (list (cdr (variableList state)) (cdr (valueList state)))))))))))
@@ -88,12 +108,19 @@
 ; Gets the value of a variable from the state. If unassigned, throws an error
 (define getFromState
   (lambda (name state)
-    (cond
-      ((null? (variableList state)) (error 'NotDefined))
-      ((and (eq? name (car (variableList state))) (eq? 'error (car (valueList state)))) (error 'Unassigned "Variable Not Assigned"))
-      ((eq? name (car (variableList state))) (car (valueList state)))
-      (else (getFromState name (list (cdr (variableList state)) (cdr (valueList state))))))))
+    (unbox (getBoxFromState name state))))
 
+; Gets the box from the current state
+(define getBoxFromState
+  (lambda (name state)
+    (cond
+      ((null? state) (error 'badstate "State not found"))
+      ((null? (variableList state)) '())
+      ((and (list? (caar state)) (isInState name (car state)) (getBoxFromState name (car state))))
+      ((and (list? (caar state)) (isInState name (cdr state)) (getBoxFromState name (cdr state))))
+      ((eq? name (car (variableList state))) (car (valueList state)))
+      (else (getBoxFromState name (list (cdr (variableList state)) (cdr (valueList state))))))))
+    
 ; Function to determine whether the expression will return a boolean or a number, and returns the literal values, as well as variable values.
 ; Lots of checks to filter which expression should go to which function
 ; Mvalue
@@ -169,8 +196,14 @@
 
 ; Abstraction below
 
+; Defined for use with blocks, removes the 'begin key
+(define blockList cdr)
+
 ; Defines the initial state
-(define initState (list '() '()))
+(define initState (list (list '() '())))
+
+; Initial Break
+;(define initBreak (error 'badbreak "Break must be in a block")) FIX THIS
 
 ; if the first item in a list is a variable name
 (define variable car)
@@ -222,3 +255,6 @@
 
 ; Used in assignment after a delcaration
 (define assignVal caddr)
+
+; Used in putInState
+(define topLayer car)

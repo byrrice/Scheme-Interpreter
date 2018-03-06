@@ -1,3 +1,7 @@
+
+if(true){
 var x = 10;
 return 2;
 return x;
+
+}
