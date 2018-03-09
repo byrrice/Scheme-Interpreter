@@ -8,7 +8,7 @@
   (lambda (fileName)
     (call/cc
      (lambda (return)
-      (evaluateStatements (parser fileName) initState return initBreak)))))
+      (evaluateStatements (parser fileName) initState return initBreak initCont initThrow)))))
 
 ; Main functiion, evaluates list of statements fed into it
 
@@ -18,7 +18,7 @@
     (cond
       ((null? stmts) state)
       ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatement (car stmts) state return break continue throw) return break continue throw))
-      (else (evaluateStatement stmts return break continue throw)))))
+      (else (evaluateStatement stmts state return break continue throw)))))
       
 
 ; Single statement
@@ -26,16 +26,20 @@
   (lambda (stmt state return break continue throw)
     (cond
       ((null? stmt) state)
-      ; ((eq? 'try (operator expr)) (call/cc (lambda (break) (evaluateTryCatch expr state return break))))
-      ((eq? 'begin (operator expr))  (removeStateLayer (call/cc (lambda (break) (evaluateStatements (blockList expr) (addStateLayer state) return break)))))
-      ((eq? 'break) (break state))
-      ((eq? 'if (car stmt)) (evaluateIf stmt state return))
-      ((eq? 'while (car stmt)) (evaluateWhile stmt state return))
-      ((eq? 'return (car stmt)) (return (evaluateExpression (returnValue stmt) state)))
-      ((eq? '= (car stmt)) (evaluateAssign stmt state))
-      ((eq? 'var (car stmt)) (evaluateDeclare stmt state))
-      ((eq? 'try (car stmt)) (evaluateTry stmt state))
-      (else (evaluateExpression stmt state)))))
+      ((eq? 'begin (operator stmt))  (evaluateBlock stmt state return break continue throw))
+      ((eq? 'break (operator stmt)) (break state))
+      ((eq? 'if (car stmt)) (evaluateIf stmt state return break continue throw))
+      ((eq? 'while (car stmt)) (call/cc
+                                (lambda (breaknew)
+                                  (evaluateWhile stmt state return (lambda (s) (breaknew (removeStateLayer s))) continue throw))))
+      ((eq? 'return (car stmt)) (return (evaluateExpression (returnValue stmt) state return break continue throw)))
+      ((eq? '= (car stmt)) (evaluateAssign stmt state return break continue throw))
+      ((eq? 'var (car stmt)) (evaluateDeclare stmt state return break continue throw))
+      ((eq? 'try (car stmt)) (evaluateTryCatchBlock stmt state return break continue throw))
+      ;TODO ((eq? 'continue (car stmt)) (con
+      ((eq? 'throw (car stmt)) (throw state (operand1 stmt)))
+      ((eq? 'continue (car stmt)) (continue state))
+      (else (evaluateExpression stmt state return break continue throw)))))
 
 ; add a layer to the state
 (define addStateLayer
@@ -49,32 +53,34 @@
 
 ; Function for evaluating if statements
 (define evaluateIf
-  (lambda (stmt state return)
-    (if (eq? 'true (evaluateExpression (ifCond stmt) state))
-        (evaluateStatements (ifTrue stmt) state return)
+  (lambda (stmt state return break continue throw)
+    (if (eq? 'true (evaluateExpression (ifCond stmt) state return break continue throw))
+        (evaluateStatement (ifTrue stmt) state return break continue throw)
         (if (not (null? (falseCheck stmt)))
-            (evaluateStatements (ifFalse stmt) state return)
+            (evaluateStatement (ifFalse stmt) state return break continue throw)
             state))))
         
 ; Function to evaluate while loops
 (define evaluateWhile
-  (lambda (stmt state return)
-    (if (eq? 'true (evaluateBool (ifCond stmt) state))
-        (evaluateWhile stmt (evaluateStatements (ifTrue stmt) state return) return)
+  (lambda (stmt state return break continue throw)
+    (if (eq? 'true (evaluateBool (ifCond stmt) state return break continue throw))        
+        (evaluateWhile stmt (call/cc
+                             (lambda (continuenew)
+                               (evaluateStatement (ifTrue stmt) state return break (lambda (s) (continuenew (removeStateLayer s))) throw))) return break continue throw) ; removed remoivestatelayer 
         state)))
 
 ; Function to evaluate declaration, adding it to the state
 (define evaluateDeclare
-  (lambda (stmt state)
+  (lambda (stmt state return break continue throw)
     (cond
       ((null? (assignCheck stmt)) (putInState (variableName stmt) 'error state))
-      (else (putInState (variableName stmt) (evaluateExpression (assignVal stmt) state) state)))))
+      (else (putInState (variableName stmt) (evaluateExpression (assignVal stmt) state return break continue throw) state)))))
 
 ; Function to add a value to the state with an associated variable. Throws an error if the variable has not been declared yet
 (define evaluateAssign
-  (lambda (stmt state)
+  (lambda (stmt state return break continue throw)
     (if (isInState (variableName stmt) state)
-        (putInState (variableName stmt) (evaluateExpression (variableValue stmt) state) state)
+        (putInState (variableName stmt) (evaluateExpression (variableValue stmt) state return break continue throw) state)
         (error 'Undeclared "Using a variable before declaring"))))
 
 ; Determines whether a variable is in the state, i.e. if it has been declared and/or assigned
@@ -91,7 +97,7 @@
 (define putInState
   (lambda (name val state)
     (cond
-      ((isInState name state) (begin (set-box! (getBoxFromState (name state)) val)) state)
+      ((isInState name state) (begin (set-box! (getBoxFromState name state) val)) state)
       (else (cons (list (cons name (variableList (topLayer state))) (cons (box val) (valueList (topLayer state)))) (cdr state))))))
 
 
@@ -126,44 +132,46 @@
 ; Lots of checks to filter which expression should go to which function
 ; Mvalue
 (define evaluateExpression
-  (lambda (expr state)
+  (lambda (expr state return break continue throw)
     (cond
       ((eq? 'true expr) 'true)
       ((eq? 'false expr) 'false)
       ((number? expr) expr)
       ((isInState expr state) (getFromState expr state))
       ((not (list? expr)) (error 'Undeclared "Using a variable before declaring"))
-      ((eq? '== (operator expr)) (evaluateBool expr state)) 
-      ((eq? '!= (operator expr)) (evaluateBool expr state))
-      ((eq? '< (operator expr)) (evaluateBool expr state))
-      ((eq? '> (operator expr)) (evaluateBool expr state))
-      ((eq? '<= (operator expr)) (evaluateBool expr state))
-      ((eq? '>= (operator expr)) (evaluateBool expr state))
-      ((eq? '&& (operator expr)) (evaluateBool expr state))
-      ((eq? '|| (operator expr)) (evaluateBool expr state))
-      ((eq? '! (operator expr)) (evaluateBool expr state))
-      ((equal? '+ (operator expr)) (evaluateValue expr state))
-      ((equal? '* (operator expr)) (evaluateValue expr state))
-      ((equal? '- (operator expr)) (evaluateValue expr state))
-      ((equal? '/ (operator expr)) (evaluateValue expr state))
-      ((equal? '% (operator expr)) (evaluateValue expr state))
+      ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw)) 
+      ((eq? '!= (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '< (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '> (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '<= (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '>= (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '&& (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '|| (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '! (operator expr)) (evaluateBool expr state return break continue throw))
+      ((equal? '+ (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '* (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '- (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '/ (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '% (operator expr)) (evaluateValue expr state return break continue throw))
       (else (error 'NotExpression "Cannot evaluate the expression")))))
 
 ; Function to return true or false given an expression
 ; Mvalue
 (define evaluateBool
-  (lambda (expr state)
+  (lambda (expr state return break continue throw)
     (convertBoolToWord
      (cond
-      ((eq? '== (operator expr)) (eq? (convertWordToBool (evaluateExpression (operand1 expr) state)) (convertWordToBool (evaluateExpression (operand2 expr) state)))) 
-      ((eq? '!= (operator expr)) (not (eq? (convertWordToBool (evaluateExpression (operand1 expr) state)) (convertWordToBool (evaluateExpression (operand2 expr) state)))))
-      ((eq? '< (operator expr)) (< (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state))) 
-      ((eq? '> (operator expr)) (> (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((eq? '<= (operator expr)) (<= (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((eq? '>= (operator expr)) (>= (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((eq? '&& (operator expr)) (and (convertWordToBool (evaluateExpression (operand1 expr) state)) (convertWordToBool (evaluateExpression (operand2 expr) state))))
-      ((eq? '|| (operator expr)) (or (convertWordToBool (evaluateExpression (operand1 expr) state)) (convertWordToBool (evaluateExpression (operand2 expr) state))))
-      ((eq? '! (operator expr)) (not (convertWordToBool (evaluateExpression (operand1 expr) state))))
+      ((eq? 'true expr) #t)
+      ((eq? 'false expr) #f)
+      ((eq? '== (operator expr)) (eq? (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw)))) 
+      ((eq? '!= (operator expr)) (not (eq? (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw)))))
+      ((eq? '< (operator expr)) (< (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw))) 
+      ((eq? '> (operator expr)) (> (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((eq? '<= (operator expr)) (<= (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((eq? '>= (operator expr)) (>= (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((eq? '&& (operator expr)) (and (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw))))
+      ((eq? '|| (operator expr)) (or (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw))))
+      ((eq? '! (operator expr)) (not (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw))))
       (else (error 'NotBoolean "Cannot evaluate the boolean expression"))))))
 
 ; Helper function to assist in conversion between words and boolean values
@@ -184,43 +192,53 @@
 ; Function to return the exact value of a function given an expression, returning a numeral value
 ; Mvalue
 (define evaluateValue
-  (lambda (expr state)
+  (lambda (expr state return break continue throw)
     (cond
       ((number? expr) expr)
-      ((equal? '+ (operator expr)) (+ (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((equal? '* (operator expr)) (* (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((and (equal? '- (operator expr)) (null? (existOp2 expr))) (- 0 (evaluateExpression (operand1 expr) state)))
-      ((equal? '- (operator expr)) (- (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((equal? '/ (operator expr)) (quotient (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
-      ((equal? '% (operator expr)) (remainder (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
+      ((equal? '+ (operator expr)) (+ (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '* (operator expr)) (* (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((and (equal? '- (operator expr)) (null? (existOp2 expr))) (- 0 (evaluateExpression (operand1 expr) state return break continue throw)))
+      ((equal? '- (operator expr)) (- (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '/ (operator expr)) (quotient (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '% (operator expr)) (remainder (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
       (else (error 'badop "Undefined operator")))))
 
 
 (define evaluateTryCatchBlock
   (lambda (stmt state return break continue throw)
-    (evaluateFinally (finallyBlock stmt) (call/cc
+    (evaluateFinally (finallyBody stmt) (call/cc
                                           (lambda (finish)
-                                            (finish (evaluateBlock (tryBlock stmt) state return  break continue (lambda (error_state my_error)
-                                                                                                                       (finish (evaluateCatch (catchBlock stmt) error_state my_error return break continue throw)))))))
+                                            (finish (evaluateTryBlock (tryBody stmt) state return  break continue (lambda (error_state my_error)
+                                                                                                                       (finish (evaluateCatch (catchBody stmt) error_state my_error return break continue throw)))))))
                      return break continue throw)))
 ;evaluate catch block
 (define evaluateCatch
   (lambda (catchList state error return break continue throw)
     (if (null? catchList)
         state
-        (evaluateBlock (operand2 catchList) state return break continue throw))))
+        (evaluateCatchBlock catchList state error return break continue throw))))
 
 ;evaluate finally if it exists
 (define evaluateFinally
   (lambda (finallyList state return break continue throw)
     (if (null? finallyList)
         state
-        (evaluateBlock (operand3 finallyList) state return break continue throw))))
+        (evaluateTryBlock (operand1 finallyList) state return break continue throw))))
     
 ;evaluateBlock
 (define evaluateBlock
   (lambda (stmts state return break continue throw)
+    (removeStateLayer (evaluateStatements (cdr stmts) (addStateLayer state) return break continue throw))))
+
+(define evaluateTryBlock
+  (lambda (stmts state return break continue throw)
     (removeStateLayer (evaluateStatements stmts (addStateLayer state) return break continue throw))))
+
+(define evaluateCatchBlock
+  (lambda (stmts state error return break continue throw)
+    (removeStateLayer (evaluateStatements (operand2 stmts) (putInState (exception stmts) error (addStateLayer state)) return break continue throw))))
+
+
 ; Abstraction below
 
 ; Defined for use with blocks, removes the 'begin key
@@ -230,7 +248,13 @@
 (define initState (list (list '() '())))
 
 ; Initial Break
-;(define initBreak (error 'badbreak "Break must be in a block")) FIX THIS
+(define initBreak (lambda (s) (error 'badbreak "Break must be in a block")))
+
+; Initial Continuation
+(define initCont (lambda (s) (error 'badcont "Continue must be in a loop")))
+
+; Initial Throw
+(define initThrow (lambda (s e) (error 'UncaughtException "threw an uncaught exception")))
 
 ; if the first item in a list is a variable name
 (define variable car)
@@ -287,6 +311,9 @@
 
 ; Used in putInState
 (define topLayer car)
+
+;Used for catch
+(define exception caadr)
 
 ;try-catch abstractions:
 (define tryBody cadr)
