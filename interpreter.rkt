@@ -36,7 +36,6 @@
       ((eq? '= (car stmt)) (evaluateAssign stmt state return break continue throw))
       ((eq? 'var (car stmt)) (evaluateDeclare stmt state return break continue throw))
       ((eq? 'try (car stmt)) (evaluateTryCatchBlock stmt state return break continue throw))
-      ;TODO ((eq? 'continue (car stmt)) (con
       ((eq? 'throw (car stmt)) (throw state (operand1 stmt)))
       ((eq? 'continue (car stmt)) (continue state))
       (else (evaluateExpression stmt state return break continue throw)))))
@@ -66,7 +65,7 @@
     (if (eq? 'true (evaluateBool (ifCond stmt) state return break continue throw))        
         (evaluateWhile stmt (call/cc
                              (lambda (continuenew)
-                               (evaluateStatement (ifTrue stmt) state return break (lambda (s) (continuenew (removeStateLayer s))) throw))) return break continue throw) ; removed remoivestatelayer 
+                               (evaluateStatement (ifTrue stmt) state return break (lambda (s) (continuenew (removeStateLayer s))) throw))) return break continue throw) 
         state)))
 
 ; Function to evaluate declaration, adding it to the state
@@ -163,14 +162,24 @@
      (cond
       ((eq? 'true expr) #t)
       ((eq? 'false expr) #f)
-      ((eq? '== (operator expr)) (eq? (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw)))) 
-      ((eq? '!= (operator expr)) (not (eq? (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw)))))
-      ((eq? '< (operator expr)) (< (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw))) 
-      ((eq? '> (operator expr)) (> (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
-      ((eq? '<= (operator expr)) (<= (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
-      ((eq? '>= (operator expr)) (>= (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
-      ((eq? '&& (operator expr)) (and (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw))))
-      ((eq? '|| (operator expr)) (or (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw)) (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw))))
+      ((eq? '== (operator expr)) (eq?
+                                  (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw))
+                                  (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw)))) 
+      ((eq? '!= (operator expr)) (not (eq?
+                                       (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw))
+                                       (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw)))))
+      ((eq? '< (operator expr)) (< (evaluateExpression (operand1 expr) state return break continue throw)
+                                   (evaluateExpression (operand2 expr) state return break continue throw))) 
+      ((eq? '> (operator expr)) (> (evaluateExpression (operand1 expr) state return break continue throw)
+                                   (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((eq? '<= (operator expr)) (<= (evaluateExpression (operand1 expr) state return break continue throw)
+                                     (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((eq? '>= (operator expr)) (>= (evaluateExpression (operand1 expr) state return break continue throw)
+                                     (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((eq? '&& (operator expr)) (and (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw))
+                                      (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw))))
+      ((eq? '|| (operator expr)) (or (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw))
+                                     (convertWordToBool (evaluateExpression (operand2 expr) state return break continue throw))))
       ((eq? '! (operator expr)) (not (convertWordToBool (evaluateExpression (operand1 expr) state return break continue throw))))
       (else (error 'NotBoolean "Cannot evaluate the boolean expression"))))))
 
@@ -195,15 +204,21 @@
   (lambda (expr state return break continue throw)
     (cond
       ((number? expr) expr)
-      ((equal? '+ (operator expr)) (+ (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
-      ((equal? '* (operator expr)) (* (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '+ (operator expr)) (+ (evaluateExpression (operand1 expr) state return break continue throw)
+                                      (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '* (operator expr)) (* (evaluateExpression (operand1 expr) state return break continue throw)
+                                      (evaluateExpression (operand2 expr) state return break continue throw)))
       ((and (equal? '- (operator expr)) (null? (existOp2 expr))) (- 0 (evaluateExpression (operand1 expr) state return break continue throw)))
-      ((equal? '- (operator expr)) (- (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
-      ((equal? '/ (operator expr)) (quotient (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
-      ((equal? '% (operator expr)) (remainder (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '- (operator expr)) (- (evaluateExpression (operand1 expr) state return break continue throw)
+                                      (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '/ (operator expr)) (quotient (evaluateExpression (operand1 expr) state return break continue throw)
+                                             (evaluateExpression (operand2 expr) state return break continue throw)))
+      ((equal? '% (operator expr)) (remainder (evaluateExpression (operand1 expr) state return break continue throw)
+                                              (evaluateExpression (operand2 expr) state return break continue throw)))
       (else (error 'badop "Undefined operator")))))
 
 
+; Evaluate TryCatchFinally
 (define evaluateTryCatchBlock
   (lambda (stmt state return break continue throw)
     (evaluateFinally (finallyBody stmt) (call/cc
@@ -230,10 +245,12 @@
   (lambda (stmts state return break continue throw)
     (removeStateLayer (evaluateStatements (cdr stmts) (addStateLayer state) return break continue throw))))
 
+; Evaluate the tryblock
 (define evaluateTryBlock
   (lambda (stmts state return break continue throw)
     (removeStateLayer (evaluateStatements stmts (addStateLayer state) return break continue throw))))
 
+; Evaluate the catch block
 (define evaluateCatchBlock
   (lambda (stmts state error return break continue throw)
     (removeStateLayer (evaluateStatements (operand2 stmts) (putInState (exception stmts) error (addStateLayer state)) return break continue throw))))
@@ -273,6 +290,7 @@
 
 ;returns the thrid operand
 (define operand3 cadddr)
+
 ; Determines whether the second operator exists or not
 (define existOp2 cddr)
 
