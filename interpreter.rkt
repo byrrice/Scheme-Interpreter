@@ -14,16 +14,16 @@
 
 ;Multiple statements
 (define evaluateStatements
-  (lambda (stmts state return break)
+  (lambda (stmts state return break continue throw)
     (cond
       ((null? stmts) state)
-      ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatement (car stmts) state return) return))
-      (else (evaluateStatement stmts state return)))))
+      ((list? (car stmts)) (evaluateStatements (cdr stmts) (evaluateStatement (car stmts) state return break continue throw) return break continue throw))
+      (else (evaluateStatement stmts return break continue throw)))))
       
 
 ; Single statement
 (define evaluateStatement
-  (lambda (stmt state return break)
+  (lambda (stmt state return break continue throw)
     (cond
       ((null? stmt) state)
       ; ((eq? 'try (operator expr)) (call/cc (lambda (break) (evaluateTryCatch expr state return break))))
@@ -34,6 +34,7 @@
       ((eq? 'return (car stmt)) (return (evaluateExpression (returnValue stmt) state)))
       ((eq? '= (car stmt)) (evaluateAssign stmt state))
       ((eq? 'var (car stmt)) (evaluateDeclare stmt state))
+      ((eq? 'try (car stmt)) (evaluateTry stmt state))
       (else (evaluateExpression stmt state)))))
 
 ; add a layer to the state
@@ -194,6 +195,32 @@
       ((equal? '% (operator expr)) (remainder (evaluateExpression (operand1 expr) state) (evaluateExpression (operand2 expr) state)))
       (else (error 'badop "Undefined operator")))))
 
+
+(define evaluateTryCatchBlock
+  (lambda (stmt state return break continue throw)
+    (evaluateFinally (finallyBlock stmt) (call/cc
+                                          (lambda (finish)
+                                            (finish (evaluateBlock (tryBlock stmt) state return  break continue (lambda (error_state my_error)
+                                                                                                                       (finish (evaluateCatch (catchBlock stmt) error_state my_error return break continue throw)))))))
+                     return break continue throw)))
+;evaluate catch block
+(define evaluateCatch
+  (lambda (catchList state error return break continue throw)
+    (if (null? catchList)
+        state
+        (evaluateBlock (operand2 catchList) state return break continue throw))))
+
+;evaluate finally if it exists
+(define evaluateFinally
+  (lambda (finallyList state return break continue throw)
+    (if (null? finallyList)
+        state
+        (evaluateBlock (operand3 finallyList) state return break continue throw))))
+    
+;evaluateBlock
+(define evaluateBlock
+  (lambda (stmts state return break continue throw)
+    (removeStateLayer (evaluateStatements stmts (addStateLayer state) return break continue throw))))
 ; Abstraction below
 
 ; Defined for use with blocks, removes the 'begin key
@@ -220,6 +247,8 @@
 ; returns the second operand from an expression
 (define operand2 caddr)
 
+;returns the thrid operand
+(define operand3 cadddr)
 ; Determines whether the second operator exists or not
 (define existOp2 cddr)
 
@@ -258,3 +287,8 @@
 
 ; Used in putInState
 (define topLayer car)
+
+;try-catch abstractions:
+(define tryBody cadr)
+(define catchBody caddr)
+(define finallyBody cadddr)
