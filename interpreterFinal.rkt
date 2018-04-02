@@ -94,8 +94,11 @@
   (lambda (name params state return break continue throw)
     (call/cc
      (lambda (newReturn)
-       (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) params (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw state) newReturn break continue throw)))))
-
+       (if (eq? (length (car (getFromState name state)) params))
+           (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) params (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw state) newReturn break continue throw)
+           (throw "wrong number of arguments")
+  
+  
 (define addParams
   (lambda (paramNames paramValues state return break continue throw oldState)
     (if (null? paramNames)
