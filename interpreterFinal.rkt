@@ -85,17 +85,21 @@
         (putInState (variableName stmt) (evaluateExpression (variableValue stmt) state return break continue throw) state)
         (error 'Undeclared "Using a variable before declaring"))))
 
+; Function to evaluate the function closure
 (define evaluateFunctionClosure
   (lambda (stmt state return break continue throw)
     (putInState (funcName stmt) (list (funcParam stmt) (funcBody stmt) state return break continue throw) state)))
         
-
+; Function to execute a function, given the input parameters
 (define evaluateFunction
   (lambda (name params state return break continue throw)
     (call/cc
      (lambda (newReturn)
-       (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) params (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw state) newReturn break continue throw)))))
-
+       (if (eq? (length (car (getFromState name state))) (length params))
+           (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) params (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw state) newReturn break continue throw)
+           (throw state "wrong number of arguments"))))))
+  
+; Associates the parameters in the closure to the input parameters
 (define addParams
   (lambda (paramNames paramValues state return break continue throw oldState)
     (if (null? paramNames)
@@ -121,6 +125,7 @@
       ((isInState name state) (begin (set-box! (getBoxFromState name state) val)) state)
       (else (cons (list (cons name (variableList (topLayer state))) (cons (box val) (valueList (topLayer state)))) (cdr state))))))
 
+; Used for putting variables in scope, static scoping
 (define putInStateDeclare
   (lambda (name val state)
     (cond
@@ -165,7 +170,7 @@
       ((eq? 'false expr) 'false)
       ((number? expr) expr)
       ((isInState expr state) (getFromState expr state))
-      ((not (list? expr)) (error 'Undeclared "Using a variable before declaring"))
+      ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
       ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw))
       ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw)) 
       ((eq? '!= (operator expr)) (evaluateBool expr state return break continue throw))
@@ -231,13 +236,13 @@
       ((equal? '% (operator expr)) (remainder (evaluateExpression (operand1 expr) state return break continue throw) (evaluateExpression (operand2 expr) state return break continue throw)))
       (else (error 'badop "Undefined operator")))))
 
-
+; Evaluates the try catch block overall
 (define evaluateTryCatchBlock
   (lambda (stmt state return break continue throw)
     (evaluateFinally (finallyBody stmt) (call/cc
                                          (lambda (finish)
                                            (finish (evaluateTryBlock (tryBody stmt) state return  break continue (lambda (error_state my_error)
-                                                                                                                   (finish (evaluateCatch (catchBody stmt) error_state my_error return break continue throw)))))))
+                                                                                                                   (finish (evaluateCatch (catchBody stmt) state (evaluateExpression my_error error_state return break continue throw) return break continue throw)))))))
                      return break continue throw)))
 ;evaluate catch block
 (define evaluateCatch
@@ -258,14 +263,17 @@
   (lambda (stmts state return break continue throw)
     (removeStateLayer (evaluateStatements (cdr stmts) (addStateLayer state) return break continue throw))))
 
+; Evaluates the try block individually
 (define evaluateTryBlock
   (lambda (stmts state return break continue throw)
     (removeStateLayer (evaluateStatements stmts (addStateLayer state) return break continue throw))))
 
+; Evaluate the catch block individually
 (define evaluateCatchBlock
   (lambda (stmts state error return break continue throw)
     (removeStateLayer (evaluateStatements (operand2 stmts) (putInState (exception stmts) error (addStateLayer state)) return break continue throw))))
 
+; Evaluate the function block individually
 (define evaluateFunctionBlock
   (lambda (stmts state return break continue throw)
     (removeStateLayer (evaluateStatements stmts (addStateLayer state) return break continue throw))))
@@ -286,7 +294,7 @@
 (define initCont (lambda (s) (error 'badcont "Continue must be in a loop")))
 
 ; Initial Throw
-(define initThrow (lambda (s e) (error 'UncaughtException "threw an uncaught exception")))
+(define initThrow (lambda (s e) (error 'UncaughtException e)))
 
 ; For use with function closure creation
 (define funcName cadr)
