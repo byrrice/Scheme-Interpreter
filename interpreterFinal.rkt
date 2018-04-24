@@ -94,9 +94,9 @@
   (lambda (name params state return break continue throw)
     (call/cc
      (lambda (newReturn)
-       (if (eq? (length (car (getFromState name state)) params))
+       (if (eq? (length (car (getFromState name state))) (length params))
            (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) params (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw state) newReturn break continue throw)
-           (throw "wrong number of arguments")
+           (throw state "wrong number of arguments"))))))
   
   
 (define addParams
@@ -168,7 +168,7 @@
       ((eq? 'false expr) 'false)
       ((number? expr) expr)
       ((isInState expr state) (getFromState expr state))
-      ((not (list? expr)) (error 'Undeclared "Using a variable before declaring"))
+      ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
       ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw))
       ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw)) 
       ((eq? '!= (operator expr)) (evaluateBool expr state return break continue throw))
@@ -240,7 +240,7 @@
     (evaluateFinally (finallyBody stmt) (call/cc
                                          (lambda (finish)
                                            (finish (evaluateTryBlock (tryBody stmt) state return  break continue (lambda (error_state my_error)
-                                                                                                                   (finish (evaluateCatch (catchBody stmt) error_state my_error return break continue throw)))))))
+                                                                                                                   (finish (evaluateCatch (catchBody stmt) state (evaluateExpression my_error error_state return break continue throw) return break continue throw)))))))
                      return break continue throw)))
 ;evaluate catch block
 (define evaluateCatch
@@ -289,7 +289,7 @@
 (define initCont (lambda (s) (error 'badcont "Continue must be in a loop")))
 
 ; Initial Throw
-(define initThrow (lambda (s e) (error 'UncaughtException "threw an uncaught exception")))
+(define initThrow (lambda (s e) (error 'UncaughtException e)))
 
 ; For use with function closure creation
 (define funcName cadr)
