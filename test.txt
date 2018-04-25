@@ -4,3 +4,8 @@ class B {
     return b;
   }
 }
+class A {
+  static function main() {
+    return 5;
+  }
+}

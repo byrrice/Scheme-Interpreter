@@ -10,17 +10,25 @@
 ;;;      (lambda (return)
 ;;;        (evaluateFunction 'main '() (evaluateStatements (parser fileName) initState return initBreak initCont initThrow) return initBreak initCont initThrow )))))
 
-(define Interpret
+(define interpret
   (lambda (fileName className)
     (call/cc
      (lambda (return)
-       (runMain className (evaluateStatements (parser fileName) initState return initBreak initCont initThrow) return initBreak initCont initThrow )))))
+       (runMain className (evaluateStatements (parser fileName) (initClassClosures (parser fileName) initState return initBreak initCont initThrow) return initBreak initCont initThrow) return initBreak initCont initThrow )))))
 
 ; Main functiion, evaluates list of statements fed into it
 (define runMain
   (lambda (className state return break continue throw)
     (evaluateFunction 'main '() (putInState 'main (getFromState 'main (operand3 (getFromState className state))) 
       (addStateLayer state)) return break continue throw)))
+
+(define initClassClosures ;just get the boxes for each class in the state wihtout making the closures yet.
+  (lambda (stmt state return break continue throw)
+    (cond
+      ((null? stmt) state)
+      ((list? (car stmt)) (initClassClosures (cdr stmt) (initClassClosures (car stmt) state return break continue throw) return break continue throw))
+      ((eq? 'class (operator stmt))  (initClassClosures (cdr stmt) (putInState (operand1 stmt) '() state) return break continue throw))
+      (else state))))
 
 ;Multiple statements
 (define evaluateStatements
@@ -130,14 +138,19 @@
   (lambda (stmt state return break continue throw)
     (putInState (funcName stmt) (list (funcParam stmt) (funcBody stmt) state return break continue throw) state)))
 
+; Function to evaluate the function closure
+(define evaluateFunctionClosure2
+  (lambda (stmt flist state return break continue throw)
+    (putInState (funcName stmt) (list (funcParam stmt) (funcBody stmt) state return break continue throw) flist)))
+
 ; Function to evaluate the class closure
 ; Class closure format: List[parentClassName, list of fields, list of functions, list of main function]
 (define evaluateClassClosure
   (lambda (stmt state return break continue throw)
     (putInState (operand1 stmt) (list (getParentName (operand2 stmt)) 
       (evaluateInstanceVariables (operand3 stmt) initState return break continue throw)
-      (evaluateInstanceFunctions (operand3 stmt) initState return break continue throw)
-      (evaluateMainFunction (operand3 stmt) initState return break continue throw)) state)))
+      (evaluateInstanceFunctions (operand3 stmt) initState state return break continue throw)
+      (evaluateMainFunction (operand3 stmt) initState state return break continue throw)) state)))
 
 ;This returns a closure, not a state
 (define evaluateInstanceClosure
@@ -162,20 +175,20 @@
 
 ; Function to get the list of instance fucntions given the body.
 (define evaluateInstanceFunctions ;TODO when we call a function, we should put the state from the class closure into the function closure, and not the one we pass in here, because it may not be fully updated with all the other functions.
-  (lambda (stmt state return break continue throw)
+  (lambda (stmt flist state return break continue throw)
     (cond
-      ((null? stmt) state)
-      ((list? (car stmt)) (evaluateInstanceFunctions (cdr stmt) (evaluateInstanceFunctions (car stmt) state return break continue throw) return break continue throw))
-      ((eq? 'function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw))
+      ((null? stmt) flist)
+      ((list? (car stmt)) (evaluateInstanceFunctions (cdr stmt) (evaluateInstanceFunctions (car stmt) flist state return break continue throw) state return break continue throw))
+      ((eq? 'function (car stmt)) (evaluateFunctionClosure2 stmt flist state return break continue throw))
       (else state))))
 
 ; returns "state" with closure for main function if it exists.
 (define evaluateMainFunction 
-  (lambda (stmt state return break continue throw)
+  (lambda (stmt flist state return break continue throw)
     (cond
-      ((null? stmt) state)
-      ((list? (car stmt)) (evaluateMainFunction (cdr stmt) (evaluateMainFunction (car stmt) state return break continue throw) return break continue throw))
-      ((eq? 'static-function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw))
+      ((null? stmt) flist)
+      ((list? (car stmt)) (evaluateMainFunction (cdr stmt) (evaluateMainFunction (car stmt) flist state return break continue throw) state return break continue throw))
+      ((eq? 'static-function (car stmt)) (evaluateFunctionClosure2 stmt flist state return break continue throw))
       (else state))))
 
 ; Function to execute a function, given the input parameters
