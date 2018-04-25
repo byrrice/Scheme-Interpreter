@@ -1,7 +1,7 @@
 ;0 Interpreter part 1
 ; Isaac Ng ikn3, Rahul Pokharna rkp43, Sibi Sengottuvel sxs1552
 
-(load "classParser.scm")
+(load "functionParser.scm")
 
 ; Function to start interpreting
 ;;; (define evaluateDoc
@@ -10,17 +10,13 @@
 ;;;      (lambda (return)
 ;;;        (evaluateFunction 'main '() (evaluateStatements (parser fileName) initState return initBreak initCont initThrow) return initBreak initCont initThrow )))))
 
-(define Interpret
+(define Interpret)
   (lambda (fileName className)
     (call/cc
      (lambda (return)
-       (runMain className (evaluateStatements (parser fileName) initState return initBreak initCont initThrow) return initBreak initCont initThrow )))))
+       (evaluateFunction 'main '() (operand3 (getFromState className (evaluateStatements (parser fileName) initState return initBreak initCont initThrow))) return initBreak initCont initThrow )))))
 
 ; Main functiion, evaluates list of statements fed into it
-(define runMain
-  (lambda (className state return break continue throw)
-    (evaluateFunction 'main '() (putInState 'main (getFromState 'main (operand3 (getFromState className state))) 
-      (addStateLayer state)) return break continue throw)))
 
 ;Multiple statements
 (define evaluateStatements
@@ -53,35 +49,6 @@
       ((eq? 'function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw))
       ((eq? 'funcall (operator stmt)) (evaluateFunction (cadr stmt) (cddr stmt) state return break continue throw) state)
       (else (evaluateExpression stmt state return break continue throw)))))
-
-; Function to determine whether the expression will return a boolean or a number, and returns the literal values, as well as variable values.
-; Lots of checks to filter which expression should go to which function
-; Mvalue
-(define evaluateExpression
-  (lambda (expr state return break continue throw)
-    (cond
-      ((eq? 'true expr) 'true)
-      ((eq? 'false expr) 'false)
-      ((number? expr) expr)
-      ((isInState expr state) (getFromState expr state))
-      ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
-      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw))
-      ((eq? 'new (operator expr))  (evaluateInstanceClosure expr state return break continue throw))
-      ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw)) 
-      ((eq? '!= (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '< (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '> (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '<= (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '>= (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '&& (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '|| (operator expr)) (evaluateBool expr state return break continue throw))
-      ((eq? '! (operator expr)) (evaluateBool expr state return break continue throw))
-      ((equal? '+ (operator expr)) (evaluateValue expr state return break continue throw))
-      ((equal? '* (operator expr)) (evaluateValue expr state return break continue throw))
-      ((equal? '- (operator expr)) (evaluateValue expr state return break continue throw))
-      ((equal? '/ (operator expr)) (evaluateValue expr state return break continue throw))
-      ((equal? '% (operator expr)) (evaluateValue expr state return break continue throw))
-      (else (error 'NotExpression "Cannot evaluate the expression")))))
 
 ; add a layer to the state
 (define addStateLayer
@@ -137,7 +104,7 @@
     (putInState (operand1 stmt) (list (getParentName (operand2 stmt)) 
       (evaluateInstanceVariables (operand3 stmt) initState return break continue throw)
       (evaluateInstanceFunctions (operand3 stmt) initState return break continue throw)
-      (evaluateMainFunction (operand3 stmt) initState return break continue throw)) state)))
+      (evaluateMainFunction (operand3 stmt) initState return break continue throw)))))
 
 ;This returns a closure, not a state
 (define evaluateInstanceClosure
@@ -154,29 +121,26 @@
 ; Function to get the list of instance variables given the body.
 (define evaluateInstanceVariables
   (lambda (stmt state return break continue throw)
-    (cond
       ((null? stmt) state)
       ((list? (car stmt)) (evaluateInstanceVariables (cdr stmt) (evaluateInstanceVariables (car stmt) state return break continue throw) return break continue throw))
       ((eq? 'var (car stmt)) (evaluateDeclare stmt state return break continue throw))
-      (else state))))
+      (else state)))
 
 ; Function to get the list of instance fucntions given the body.
 (define evaluateInstanceFunctions ;TODO when we call a function, we should put the state from the class closure into the function closure, and not the one we pass in here, because it may not be fully updated with all the other functions.
   (lambda (stmt state return break continue throw)
-    (cond
       ((null? stmt) state)
       ((list? (car stmt)) (evaluateInstanceFunctions (cdr stmt) (evaluateInstanceFunctions (car stmt) state return break continue throw) return break continue throw))
       ((eq? 'function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw))
-      (else state))))
+      (else state)
 
 ; returns "state" with closure for main function if it exists.
 (define evaluateMainFunction 
   (lambda (stmt state return break continue throw)
-    (cond
       ((null? stmt) state)
       ((list? (car stmt)) (evaluateMainFunction (cdr stmt) (evaluateMainFunction (car stmt) state return break continue throw) return break continue throw))
       ((eq? 'static-function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw))
-      (else state))))
+      (else state)
 
 ; Function to execute a function, given the input parameters
 (define evaluateFunction
@@ -186,6 +150,8 @@
        (if (eq? (length (car (getFromState name state))) (length params))
            (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) params (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw state) newReturn break continue throw)
            (throw state "wrong number of arguments"))))))
+
+
 
 ; Associates the parameters in the closure to the input parameters
 (define addParams
@@ -248,6 +214,33 @@
       ((eq? name (car (variableList state))) (car (valueList state)))
       (else (getBoxFromState name (list (cdr (variableList state)) (cdr (valueList state))))))))
     
+; Function to determine whether the expression will return a boolean or a number, and returns the literal values, as well as variable values.
+; Lots of checks to filter which expression should go to which function
+; Mvalue
+(define evaluateExpression
+  (lambda (expr state return break continue throw)
+    (cond
+      ((eq? 'true expr) 'true)
+      ((eq? 'false expr) 'false)
+      ((number? expr) expr)
+      ((isInState expr state) (getFromState expr state))
+      ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
+      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw))
+      ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw)) 
+      ((eq? '!= (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '< (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '> (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '<= (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '>= (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '&& (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '|| (operator expr)) (evaluateBool expr state return break continue throw))
+      ((eq? '! (operator expr)) (evaluateBool expr state return break continue throw))
+      ((equal? '+ (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '* (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '- (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '/ (operator expr)) (evaluateValue expr state return break continue throw))
+      ((equal? '% (operator expr)) (evaluateValue expr state return break continue throw))
+      (else (error 'NotExpression "Cannot evaluate the expression")))))
 
 ; Function to return true or false given an expression
 ; Mvalue
