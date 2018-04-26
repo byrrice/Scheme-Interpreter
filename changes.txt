@@ -1,0 +1,37 @@
+
+Functions I've changed/added:
+interpret - use this to interpret the document
+runMain - runs the main function from the specified class
+initClassClosures - runs through the whole doc and adds the class names to the state as empty objects before actually making the class closures
+evaluateStatemnt - added dot operator call, and modified funcall
+evaluateExpression - added dot operator and new operator to make new instances.
+evaluateFunctionClosure2 - new version to make the function closrues. takes an flist as well as the state. flist is the list of functions from the class closure.
+evaluateStaticFunctionClosure - used to make the closure for main function. only difference is that it doesnt cons 'this onto the parameters.
+evaluateClassClosure - makes the class closure. the structure of the closure is shown in the comment above the function
+evaluateInstanceClosure - makes the instance closure.the structure of the closure is shown in the comment above the function
+getParentName - gets the parent name from the function syntax if it extends something, otherwise it returns null.
+evaluateInstanceVariables - goes through the class body and adds the instancevariables to the list of variables (which is the same structure as a class)
+evaluateInstanceFunctions - goes through the class body and adds the instance functions to the list of variables (which is the same structure as a class)
+evaluateMainFunction - same as above but works for main.
+evaluateFunction -  made some changes for adding this.
+evaluateStaticFunction - same as above but doesnt have the this changes.
+evaluateDot - evaluates the dot function.
+getLeftSideOfDot - gets the closure for the instance on the left side of the dot.
+
+From the reccommended changes:
+
+Part 1: First, get the basic class structure into your interpreter.
+    This part is all done. You can test the two test classes he provides by running 
+        (interpret "test.txt" "A") and (interpret "test.txt" "B")
+    
+Part 2: Next, get the dot operator working. I suggest first handling methods and then fields.
+    this part is not done yet.You can test the test case he gives under 8 by running (interpret "test.txt" "C").
+        1. Done. I added a field called "type" that is passed to all the functions just like the other continuations.
+        2. I didn't explicitly do this part, but I dont know if we need to. I think we can get the class from the Instance closure that calls this function, 
+            so we don't need a seperate field to store the class. This is something that will need to be figured out.
+        3. This is done. I add this into the function closure in 'EvaluateFunctionClosure2' which is the function we should be using.
+        4. getLeftSideOfDot
+        5. We can get this by getting it from the instance closure in evaluateFunction. (still may need to do this part)
+        6. In evaluateStatemnts i also pass in the instance closure to evaluatefunction (by funcall) using getLeftSideOfDot.
+        7. not sure if this is done/how to do it.
+        8. it doesnt work. (interpret "test.txt" "C")
