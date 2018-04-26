@@ -9,3 +9,13 @@ class A {
     return 5;
   }
 }
+class C {
+  function f() {
+    return 5;
+  }
+
+  static function main() {
+    var c = new C();
+    return c.f();
+  }
+}
