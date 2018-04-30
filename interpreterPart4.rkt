@@ -160,10 +160,10 @@
       (evaluateInstanceFunctions (operand3 stmt) initState state return break continue throw type)
       (evaluateMainFunction (operand3 stmt) initState state return break continue throw type)) state)))
 
-;This returns a closure, not a state Closure: [className, list of fields]
+;This returns a closure, not a state Closure: [class closure, list of fields]
 (define evaluateInstanceClosure
   (lambda (stmt state return break continue throw type)
-    (list (operand1 stmt) (operand1 (getFromState (operand1 stmt) state)))));get list of fields from the closure for this class.
+    (list (getFromState (operand1 stmt) state) (operand1 (getFromState (operand1 stmt) state)))));get list of fields from the closure for this class.
         
 ; Function to get the parent name from operand2 of the class stmt
 (define getParentName
@@ -370,14 +370,16 @@
 
 (define evaluateDot
   (lambda (instanceClosure name state return break continue throw type)
-    (if (isInState name (functionListOP (getFromState (classNameOP instanceClosure) state))) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
-       (getFromState name (functionListOP (getFromState (classNameOP instanceClosure) state)))) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
+    (if (isInState name (functionListOP (classNameOP instanceClosure))) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
+       (getFromState name (functionListOP (classNameOP instanceClosure)))) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
       '();TODO fields
     ))
 
 (define getLeftSideOfDot
   (lambda (instanceName state return break continue throw type)
     (evaluateExpression instanceName state return break continue throw type)))
+
+
 ; Abstraction below
 
 ; Defined for use with blocks, removes the 'begin key
