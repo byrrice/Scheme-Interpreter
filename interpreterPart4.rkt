@@ -74,7 +74,7 @@
       ((number? expr) expr)
       ((isInState expr state) (getFromState expr state))
       ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
-      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw type (getLeftSideOfDot (cadr (cadr expr)) state return break continue throw type)) state)
+      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw type (getLeftSideOfDot (cadr (cadr expr)) state return break continue throw type)))
       ((eq? 'dot (operator expr)) (evaluateDot (getLeftSideOfDot (operand1 expr) state return break continue throw type) (operand2 expr) state return break continue throw type))
       ((eq? 'new (operator expr))  (evaluateInstanceClosure expr state return break continue throw type))
       ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw type)) 
@@ -205,7 +205,8 @@
     (call/cc
      (lambda (newReturn)
        (if (eq? (length (car (evaluateExpression name state return break continue throw type))) (+ 1 (length params)));add 1 for this.
-           (evaluateFunctionBlock (cadr (evaluateExpression name state return break continue throw type)) (addParams (car (evaluateExpression name state return break continue throw type)) (cons instanceClosure params) (addStateLayer (putInState name (evaluateExpression name state return break continue throw type) (caddr (evaluateExpression name state return break continue throw type)))) return break continue throw type state) newReturn break continue throw type)
+           (evaluateFunctionBlock (cadr (evaluateExpression name state return break continue throw type)) (addParams1 (car (evaluateExpression name state return break continue throw type)) (cons instanceClosure params)
+                                                                                                                      (addStateLayer (caddr (evaluateExpression name state return break continue throw type))) return break continue throw type state) newReturn break continue throw type)
            (throw state "wrong number of arguments"))))))
 
 (define evaluateStaticFunction
@@ -223,6 +224,11 @@
         state
         (addParams (cdr paramNames) (cdr paramValues) (putInState (car paramNames) (evaluateExpression (car paramValues) oldState return break continue throw type) state) return break continue throw type oldState))))
 
+(define addParams1
+  (lambda (paramNames paramValues state return break continue throw type oldState)
+    (if (null? paramNames)
+        state
+        (addParams (cdr paramNames) (cdr paramValues) (putInState (car paramNames) (car paramValues) state) return break continue throw type oldState))))
                            
     
 ; Determines whether a variable is in the state, i.e. if it has been declared and/or assigned
@@ -372,7 +378,7 @@
   (lambda (instanceClosure name state return break continue throw type)
     (if (isInState name (functionListOP (classNameOP instanceClosure))) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
        (getFromState name (functionListOP (classNameOP instanceClosure))) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
-      'butts;TODO fields
+       (getFromState name (cadr instanceClosure))
     )))
 
 (define getLeftSideOfDot
