@@ -205,7 +205,7 @@
     (call/cc
      (lambda (newReturn)
        (if (eq? (length (car (evaluateExpression name state return break continue throw type))) (+ 1 (length params)));add 1 for this.
-           (evaluateFunctionBlock (cadr (getFromState name state)) (addParams (car (getFromState name state)) (cons instanceClosure params) (addStateLayer (putInState name (getFromState name state) (caddr (getFromState name state)))) return break continue throw type state) newReturn break continue throw type)
+           (evaluateFunctionBlock (cadr (evaluateExpression name state return break continue throw type)) (addParams (car (evaluateExpression name state return break continue throw type)) (cons instanceClosure params) (addStateLayer (putInState name (evaluateExpression name state return break continue throw type) (caddr (evaluateExpression name state return break continue throw type)))) return break continue throw type state) newReturn break continue throw type)
            (throw state "wrong number of arguments"))))))
 
 (define evaluateStaticFunction
@@ -371,9 +371,9 @@
 (define evaluateDot
   (lambda (instanceClosure name state return break continue throw type)
     (if (isInState name (functionListOP (classNameOP instanceClosure))) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
-       (getFromState name (functionListOP (classNameOP instanceClosure)))) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
-      '();TODO fields
-    ))
+       (getFromState name (functionListOP (classNameOP instanceClosure))) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
+      'butts;TODO fields
+    )))
 
 (define getLeftSideOfDot
   (lambda (instanceName state return break continue throw type)
