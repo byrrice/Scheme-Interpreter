@@ -59,7 +59,7 @@
       ((eq? 'throw (car stmt)) (throw state (operand1 stmt)))
       ((eq? 'continue (car stmt)) (continue state))
       ((eq? 'function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw type))
-      ((eq? 'funcall (operator stmt)) (evaluateFunction (cadr stmt) (cddr stmt) state return break continue throw type (getLeftSideOfDot (cadr stmt))) state)
+      ((eq? 'funcall (operator stmt)) (evaluateFunction (cadr stmt) (cddr stmt) state return break continue throw type (getLeftSideOfDot (cadr (cadr stmt)))) state)
       ((eq? 'dot (operator stmt)) (evaluateDot (getLeftSideOfDot (operand1 stmt) state return break continue throw type) (operand2 stmt) state return break continue throw type)
       (else (evaluateExpression stmt state return break continue throw type))))))
 
@@ -74,7 +74,7 @@
       ((number? expr) expr)
       ((isInState expr state) (getFromState expr state))
       ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
-      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw type (getLeftSideOfDot (cadr expr) state return break continue throw type)) state)
+      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw type (getLeftSideOfDot (cadr (cadr expr)) state return break continue throw type)) state)
       ((eq? 'dot (operator expr)) (evaluateDot (getLeftSideOfDot (operand1 expr) state return break continue throw type) (operand2 expr) state return break continue throw type))
       ((eq? 'new (operator expr))  (evaluateInstanceClosure expr state return break continue throw type))
       ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw type)) 
@@ -188,7 +188,7 @@
       ((null? stmt) flist)
       ((list? (car stmt)) (evaluateInstanceFunctions (cdr stmt) (evaluateInstanceFunctions (car stmt) flist state return break continue throw type) state return break continue throw type))
       ((eq? 'function (car stmt)) (evaluateFunctionClosure2 stmt flist state return break continue throw type))
-      (else state))))
+      (else flist))))
 
 ; returns "state" with closure for main function if it exists.
 (define evaluateMainFunction 
@@ -197,7 +197,7 @@
       ((null? stmt) flist)
       ((list? (car stmt)) (evaluateMainFunction (cdr stmt) (evaluateMainFunction (car stmt) flist state return break continue throw type) state return break continue throw type))
       ((eq? 'static-function (car stmt)) (evaluateStaticFunctionClosure stmt flist state return break continue throw type))
-      (else state))))
+      (else flist))))
 
 ; Function to execute a function, given the input parameters
 (define evaluateFunction

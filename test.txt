@@ -1,14 +1,3 @@
-class B {
-  static function main() {
-    var b = new B();
-    return b;
-  }
-}
-class A {
-  static function main() {
-    return 5;
-  }
-}
 class C {
   function f() {
     return 5;
