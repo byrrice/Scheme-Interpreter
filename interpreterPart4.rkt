@@ -59,7 +59,7 @@
       ((eq? 'throw (car stmt)) (throw state (operand1 stmt)))
       ((eq? 'continue (car stmt)) (continue state))
       ((eq? 'function (car stmt)) (evaluateFunctionClosure stmt state return break continue throw type))
-      ((eq? 'funcall (operator stmt)) (evaluateFunction (cadr stmt) (cddr stmt) state return break continue throw type (getLeftSideOfDot (cadr (cadr stmt)))) state)
+      ((eq? 'funcall (operator stmt)) (evaluateFunction (cadr stmt) (cddr stmt) state return break continue throw type (getLeftSideOfDot (cadadr stmt) state return break continue throw type)) state);what is this state
       ((eq? 'dot (operator stmt)) (evaluateDot (getLeftSideOfDot (operand1 stmt) state return break continue throw type) (operand2 stmt) state return break continue throw type)
       (else (evaluateExpression stmt state return break continue throw type))))))
 
@@ -74,7 +74,7 @@
       ((number? expr) expr)
       ((isInState expr state) (getFromState expr state))
       ((not (list? expr))  (error 'Undeclared "Using a variable before declaring"))
-      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw type (getLeftSideOfDot (cadr (cadr expr)) state return break continue throw type)))
+      ((eq? 'funcall (operator expr)) (evaluateFunction (cadr expr) (cddr expr) state return break continue throw type (getLeftSideOfDot (cadadr expr) state return break continue throw type)))
       ((eq? 'dot (operator expr)) (evaluateDot (getLeftSideOfDot (operand1 expr) state return break continue throw type) (operand2 expr) state return break continue throw type))
       ((eq? 'new (operator expr))  (evaluateInstanceClosure expr state return break continue throw type))
       ((eq? '== (operator expr)) (evaluateBool expr state return break continue throw type)) 
@@ -132,9 +132,31 @@
 ; Function to add a value to the state with an associated variable. Throws an error if the variable has not been declared yet
 (define evaluateAssign
   (lambda (stmt state return break continue throw type)
-    (if (isInState (variableName stmt) state)
-        (putInState (variableName stmt) (evaluateExpression (variableValue stmt) state return break continue throw type) state)
-        (error 'Undeclared "Using a variable before declaring"))))
+    (if (list? (variableName stmt))
+        (if (hasField (operand2 (variableName stmt)) (getLeftSideOfDot (operand1 (variableName stmt)) state return break continue throw type));its a dot
+            (setField
+             (operand2 (variableName stmt))
+             (evaluateExpression (variableValue stmt) state return break continue throw type)
+             (operand1 (variableName stmt))
+             (getLeftSideOfDot (operand1 (variableName stmt)) state return break continue throw type)
+             state)
+            (error 'Undeclared "Using a variable before declaring"))
+        (if (isInState (variableName stmt) state)
+            (putInState (variableName stmt) (evaluateExpression (variableValue stmt) state return break continue throw type) state)
+            (error 'Undeclared "Using a variable before declaring")))))
+
+(define getField
+  (lambda (fieldName instanceClosure)
+    (getFromState fieldName (operand1 instanceClosure))))
+
+(define hasField
+  (lambda (fieldName instanceClosure)
+    (isInState fieldName (operand1 instanceClosure))))
+
+(define setField ;returns the updated state with the updated closure
+  (lambda (fieldName value instanceName instanceClosure state)
+    (putInState instanceName (putInState fieldName value (operand1 instanceClosure)) state)))
+
 
 ; Function to evaluate the function closure [parameter names, body, state, return, break, continue, throw, type, thisClosure] 
 (define evaluateFunctionClosure
