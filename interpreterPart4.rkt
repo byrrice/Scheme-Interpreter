@@ -185,7 +185,7 @@
 ;This returns a closure, not a state Closure: [class closure, list of fields]
 (define evaluateInstanceClosure
   (lambda (stmt state return break continue throw type)
-    (list (getFromState (operand1 stmt) state) (operand1 (getFromState (operand1 stmt) state)))));get list of fields from the closure for this class.
+    (list (getFromState (operand1 stmt) state) (copylist (operand1 (getFromState (operand1 stmt) state)) initState))));get list of fields from the closure for this class.
         
 ; Function to get the parent name from operand2 of the class stmt
 (define getParentName
@@ -339,6 +339,15 @@
       ((eq? 'true word) #t)
       ((eq? 'false word) #f)
       (else word))))
+
+; used to make new boxes for each instance variable in instance closure
+(define copylist
+  (lambda (oldList state)
+    (cond
+      ((null? oldList) state)
+      ((null? (car oldList)) state)
+      ((pair? (caar oldList)) (copylist (cdr oldList) (copylist (car oldList) (addStateLayer state))))
+      (else (copylist (list (cdar oldList) (cdadr oldList)) (putInState (caar oldList) (getFromState (caar oldList) oldList) state))))))
 
 ; Function to return the exact value of a function given an expression, returning a numeral value
 ; Mvalue
