@@ -352,7 +352,7 @@
     (cond
       ((null? oldList) state)
       ((null? (car oldList)) state)
-      ((pair? (caar oldList)) (copylist (cdr oldList) (copylist (car oldList) (addStateLayer state))))
+      ((list? (caar oldList)) (copylist (cdr oldList) (copylist (car oldList) (addStateLayer state))))
       (else (copylist (list (cdar oldList) (cdadr oldList)) (putInState (caar oldList) (getFromState (caar oldList) oldList) state))))))
 
 ; Function to return the exact value of a function given an expression, returning a numeral value
@@ -415,8 +415,10 @@
   (lambda (instanceClosure name state return break continue throw type)
     (if (hasFunction name instanceClosure) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
        (getFunction name instanceClosure) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
-       (getFromState name (cadr instanceClosure))
-    )))
+       (if (hasField name instanceClosure)
+           (getField name instanceClosure)
+           (throw 'ur dumb)
+    ))))
 
 (define hasFunction
   (lambda (name instanceClosure)
@@ -433,6 +435,22 @@
         (if (null? (operand2 instanceClosure))
             '()
             (getFunction name (operand2 instanceClosure))))))
+
+(define hasField
+  (lambda (name instanceClosure)
+    (if (isInState name (operand1 instanceClosure))
+        #t
+        (if (null? (operand2 instanceClosure))
+            #f
+            (hasField name (operand2 instanceClosure))))))
+
+(define getField
+  (lambda (name instanceClosure)
+    (if (isInState name (operand1 instanceClosure))
+        (getFromState name (operand1 instanceClosure))
+        (if (null? (operand2 instanceClosure))
+            '()
+            (getField name (operand2 instanceClosure))))))
 
 (define getLeftSideOfDot
   (lambda (instanceName state return break continue throw type)

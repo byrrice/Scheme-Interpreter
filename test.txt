@@ -3,7 +3,7 @@ class A {
   var y = 2;
 
   function m() {
-    return 5;
+    return this.m2();
   }
 
   function m2() {
@@ -12,9 +12,27 @@ class A {
 }
 
 class B extends A {
+  var y = 22;
+  var z = 3;
 
-  static function main(){
-    return m();
+  function m() {
+    return super.m();
+  }
+
+  function m2() {
+    return x+y+z;
   }
 }
 
+class C extends B {
+  var y = 222;
+  var w = 4;
+
+  function m() {
+    return super.m();
+  }
+
+  static function main() {
+    return new C().m();
+  }
+}
