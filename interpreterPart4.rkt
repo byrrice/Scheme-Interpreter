@@ -182,11 +182,17 @@
       (evaluateInstanceFunctions (operand3 stmt) initState state return break continue throw type)
       (evaluateMainFunction (operand3 stmt) initState state return break continue throw type)) state)))
 
-;This returns a closure, not a state Closure: [class closure, list of fields]
+;This returns a closure, not a state Closure: [class closure, list of fields, parent closure]
 (define evaluateInstanceClosure
   (lambda (stmt state return break continue throw type)
-    (list (getFromState (operand1 stmt) state) (copylist (operand1 (getFromState (operand1 stmt) state)) initState))));get list of fields from the closure for this class.
-        
+    (list (getFromState (operand1 stmt) state) (copylist (operand1 (getFromState (operand1 stmt) state)) initState) (parentClosure (car (getFromState (operand1 stmt) state)) state))));get list of fields from the closure for this class.
+
+(define parentClosure
+  (lambda (parentClassName state)
+    (if (isInState parentClassName state)
+      (list (getFromState parentClassName state) (copylist (operand1 (getFromState parentClassName state)) initState) (parentClosure (car (getFromState parentClassName state)) state))
+      '())))
+
 ; Function to get the parent name from operand2 of the class stmt
 (define getParentName
   (lambda (l) 
@@ -407,10 +413,26 @@
 
 (define evaluateDot
   (lambda (instanceClosure name state return break continue throw type)
-    (if (isInState name (functionListOP (classNameOP instanceClosure))) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
-       (getFromState name (functionListOP (classNameOP instanceClosure))) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
+    (if (hasFunction name instanceClosure) ;check if the function name is in the functionlist in the class closure, which we get using the classname from the instance closure.
+       (getFunction name instanceClosure) ;we know this is a function call. so the goal is to return the function closure. Also append the instance onto the end of the function closure.
        (getFromState name (cadr instanceClosure))
     )))
+
+(define hasFunction
+  (lambda (name instanceClosure)
+    (if (isInState name (functionListOP (classNameOP instanceClosure)))
+        #t
+        (if (null? (operand2 instanceClosure))
+            #f
+            (hasFunction name (operand2 instanceClosure))))))
+
+(define getFunction
+  (lambda (name instanceClosure)
+    (if (isInState name (functionListOP (classNameOP instanceClosure)))
+        (getFromState name (functionListOP (classNameOP instanceClosure)))
+        (if (null? (operand2 instanceClosure))
+            '()
+            (getFunction name (operand2 instanceClosure))))))
 
 (define getLeftSideOfDot
   (lambda (instanceName state return break continue throw type)
